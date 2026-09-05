@@ -1,13 +1,23 @@
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   const { name, email, password } = await req.json();
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (!email || !password) {
+    return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+  }
+  if (String(password).length < 6) {
+    return NextResponse.json(
+      { error: "Password must be at least 6 characters" },
+      { status: 400 }
+    );
+  }
+
+  const normalizedEmail = String(email).trim().toLowerCase();
+
+  const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existingUser) {
     return NextResponse.json({ error: "User already exists" }, { status: 400 });
   }
@@ -15,7 +25,7 @@ export async function POST(req: Request) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const user = await prisma.user.create({
-    data: { name, email, password: hashedPassword },
+    data: { name, email: normalizedEmail, password: hashedPassword },
   });
 
   return NextResponse.json({ message: "User created", userId: user.id });
